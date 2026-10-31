@@ -1,11 +1,5 @@
 package com.renzien.aethra.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -24,7 +18,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -33,31 +26,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.renzien.aethra.ui.components.AethraLogo
 import com.renzien.aethra.ui.components.GlassCard
 import com.renzien.aethra.ui.theme.AethraColors
-import com.renzien.aethra.ui.components.AethraLogo
 
 @Composable
-fun HomeScreen(){
-    val cardVisible = remember {
-        MutableTransitionState(false).apply {
-            targetState = true
-        }
-    }
-
+fun HomeScreen(
+    cardSurfaceModifier: Modifier = Modifier,
+    cardContentModifier: Modifier = Modifier
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
+                Brush.verticalGradient(
+                    listOf(
                         AethraColors.Navy,
                         AethraColors.Ocean
                     )
                 )
             )
     ) {
-        // Ray Lighting
         Canvas(modifier = Modifier.matchParentSize()) {
             val center = Offset(
                 x = size.width * 0.80f,
@@ -84,10 +73,14 @@ fun HomeScreen(){
                 .fillMaxSize()
                 .safeDrawingPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 32.dp)
+                .padding(
+                    horizontal = 24.dp,
+                    vertical = 32.dp
+                )
         ) {
             AethraLogo()
-            Spacer(modifier = Modifier.height(12.dp))
+
+            Spacer(Modifier.height(12.dp))
 
             Text(
                 text = "Your Finance,\nMore stable.",
@@ -97,24 +90,14 @@ fun HomeScreen(){
                 fontWeight = FontWeight.Medium
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(Modifier.height(32.dp))
 
-            AnimatedVisibility(
-                visibleState = cardVisible,
-                enter = fadeIn(
-                    animationSpec = tween(durationMillis = 650)
-                ) + slideInVertically(
-                    animationSpec = tween(
-                        durationMillis = 650,
-                        easing = FastOutSlowInEasing
-                    ),
-                    initialOffsetY = { fullHeight -> fullHeight / 5 }
-                )
-            ) {
-                BalanceCard()
-            }
+            BalanceCard(
+                surfaceModifier = cardSurfaceModifier,
+                contentModifier = cardContentModifier
+            )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
 
             Text(
                 text = "Example Data",
@@ -126,45 +109,58 @@ fun HomeScreen(){
 }
 
 @Composable
-private fun BalanceCard() {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
+private fun BalanceCard(
+    surfaceModifier: Modifier,
+    contentModifier: Modifier
+) {
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        surfaceModifier = surfaceModifier,
+        contentModifier = contentModifier
+    ) {
         Text(
             text = "Balance Amount",
             color = AethraColors.MutedText,
             fontSize = 14.sp
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(Modifier.height(8.dp))
 
         Text(
             text = "Rp12.680.420",
             color = Color.White,
             fontSize = 32.sp,
+            lineHeight = 40.sp,
             fontWeight = FontWeight.Medium
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(Modifier.height(16.dp))
 
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(50.dp))
-                .background(AethraColors.Mint.copy(alpha = 0.12f))
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .background(
+                    AethraColors.Mint.copy(alpha = 0.12f)
+                )
+                .padding(
+                    horizontal = 12.dp,
+                    vertical = 8.dp
+                )
         ) {
             Text(
-                text = "+2,46% this month.",
+                text = "+2.46% this month",
                 color = AethraColors.Mint,
                 fontSize = 13.sp
             )
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(Modifier.height(28.dp))
 
         HorizontalDivider(
             color = Color.White.copy(alpha = 0.16f)
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(Modifier.height(20.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -177,7 +173,7 @@ private fun BalanceCard() {
                     fontSize = 12.sp
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(Modifier.height(6.dp))
 
                 Text(
                     text = "Rp15.250.000",
@@ -194,7 +190,7 @@ private fun BalanceCard() {
                     fontSize = 12.sp
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(Modifier.height(6.dp))
 
                 Text(
                     text = "Rp2.569.580",

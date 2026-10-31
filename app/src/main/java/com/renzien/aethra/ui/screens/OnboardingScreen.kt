@@ -40,7 +40,9 @@ import com.renzien.aethra.ui.theme.AethraColors
 fun OnboardingScreen(
     onGetStarted: () -> Unit,
     isSaving: Boolean,
-    errorMessage: String?
+    errorMessage: String?,
+    cardSurfaceModifier: Modifier = Modifier,
+    cardContentModifier: Modifier = Modifier
 ) {
     Column(
         modifier = Modifier
@@ -60,7 +62,10 @@ fun OnboardingScreen(
             fontWeight = FontWeight.Medium
         )
 
-        WalletArtwork()
+        WalletArtwork(
+            surfaceModifier = cardSurfaceModifier,
+            contentModifier = cardContentModifier
+        )
 
         Text(
             text = "See your balance, track your spending, " +
@@ -107,7 +112,10 @@ fun OnboardingScreen(
 }
 
 @Composable
-private fun WalletArtwork() {
+private fun WalletArtwork(
+    surfaceModifier: Modifier,
+    contentModifier: Modifier
+) {
     val transition = rememberInfiniteTransition(
         label = "wallet floating"
     )
@@ -131,13 +139,13 @@ private fun WalletArtwork() {
             .padding(vertical = 16.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Lapisan kartu di belakang.
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .padding(horizontal = 16.dp)
                 .graphicsLayer {
                     rotationZ = 6f
+                    translationY = lift.dp.toPx()
                 }
                 .background(
                     color = Color.White.copy(alpha = 0.10f),
@@ -145,14 +153,10 @@ private fun WalletArtwork() {
                 )
         )
 
-        // Kartu utama bergerak naik-turun secara perlahan.
         GlassCard(
-            modifier = Modifier
-                .fillMaxWidth(0.90f)
-                .graphicsLayer {
-                    translationY = lift.dp.toPx()
-                    rotationZ = -3f
-                }
+            modifier = Modifier.fillMaxWidth(0.90f),
+            surfaceModifier = surfaceModifier,
+            contentModifier = contentModifier
         ) {
             Text(
                 text = "Aethra wallet",
@@ -160,7 +164,7 @@ private fun WalletArtwork() {
                 fontSize = 14.sp
             )
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(Modifier.height(28.dp))
 
             Text(
                 text = "Small steps.\nStronger habits.",
@@ -170,7 +174,7 @@ private fun WalletArtwork() {
                 fontWeight = FontWeight.Medium
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(Modifier.height(24.dp))
 
             Text(
                 text = "TRACK  ·  PLAN  ·  GROW",

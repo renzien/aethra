@@ -1,10 +1,14 @@
 package com.renzien.aethra
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.BoundsTransform
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,8 +32,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -47,6 +53,29 @@ private enum class StartScreen {
     Error
 }
 
+private const val WALLET_DURATION = 1200
+
+private val walletBoundsTransform = BoundsTransform { start, end ->
+    val zoom = 1.24f
+    val halfWidth = end.width * zoom / 2f
+    val halfHeight = end.height * zoom / 2f
+
+    val closeUp = Rect(
+        left = end.center.x - halfWidth,
+        top = end.center.y - halfHeight,
+        right = end.center.x + halfWidth,
+        bottom = end.center.y + halfHeight
+    )
+
+    keyframes {
+        durationMillis = WALLET_DURATION
+
+        start at 0 using FastOutSlowInEasing
+        closeUp at 700 using FastOutSlowInEasing
+        end at WALLET_DURATION
+    }
+}
+
 @Composable
 fun AethraApp() {
     val appContext = LocalContext.current.applicationContext
@@ -61,9 +90,17 @@ fun AethraApp() {
         mutableStateOf(StartScreen.Loading)
     }
 
-    var retryCount by remember { mutableStateOf(0) }
-    var isSaving by remember { mutableStateOf(false) }
-    var saveError by remember { mutableStateOf<String?>(null) }
+    var retryCount by remember {
+        mutableStateOf(0)
+    }
+
+    var isSaving by remember {
+        mutableStateOf(false)
+    }
+
+    var saveError by remember {
+        mutableStateOf<String?>(null)
+    }
 
     LaunchedEffect(preferences, retryCount) {
         screen = StartScreen.Loading
@@ -79,100 +116,168 @@ fun AethraApp() {
         }
     }
 
-    AnimatedContent(
-        targetState = screen,
+    SharedTransitionLayout(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
+                Brush.verticalGradient(
+                    listOf(
                         AethraColors.Navy,
                         AethraColors.Ocean
                     )
                 )
-            ),
-        transitionSpec = {
-            (
-                    fadeIn(
-                        animationSpec = tween(500)
-                    ) + slideInVertically(
-                        animationSpec = tween(500),
-                        initialOffsetY = { height -> height / 12 }
-                    )
-                    ) togetherWith fadeOut(
-                animationSpec = tween(200)
             )
-        },
-        label = "Aethra screen transition"
-    ) { currentScreen ->
-        when (currentScreen) {
-            StartScreen.Loading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .safeDrawingPadding(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(
-                        color = Color.White
+    ) {
+        val sharedScope = this
+
+        AnimatedContent(
+            targetState = screen,
+            modifier = Modifier.fillMaxSize(),
+            transitionSpec = {
+                val isWalletTransition =
+                    initialState == StartScreen.Onboarding &&
+                            targetState == StartScreen.Home
+
+                if (isWalletTransition) {
+                    fadeIn(
+                        tween(
+                            durationMillis = 400,
+                            delayMillis = 800
+                        )
+                    ) togetherWith fadeOut(
+                        tween(durationMillis = 200)
+                    )
+                } else {
+                    fadeIn(
+                        tween(durationMillis = 250)
+                    ) togetherWith fadeOut(
+                        tween(durationMillis = 150)
                     )
                 }
-            }
+            },
+            label = "Aethra wallet zoom"
+        ) { currentScreen ->
+            val visibilityScope = this
 
-            StartScreen.Onboarding -> {
-                OnboardingScreen(
-                    isSaving = isSaving,
-                    errorMessage = saveError,
-                    onGetStarted = {
-                        if (!isSaving) {
-                            isSaving = true
-                            saveError = null
-
-                            scope.launch {
-                                try {
-                                    preferences.complete()
-                                    screen = StartScreen.Home
-                                } catch (_: IOException) {
-                                    saveError = "We couldn't save your " +
-                                            "progress. Please try again."
-                                } finally {
-                                    isSaving = false
-                                }
-                            }
-                        }
-                    }
+            val surfaceModifier = with(sharedScope) {
+                Modifier.sharedElement(
+                    sharedContentState = rememberSharedContentState(
+                        key = "aethra-wallet-surface"
+                    ),
+                    animatedVisibilityScope = visibilityScope,
+                    boundsTransform = walletBoundsTransform,
+                    zIndexInOverlay = 1f
                 )
             }
 
-            StartScreen.Home -> {
-                HomeScreen()
+            val contentModifier = with(sharedScope) {
+                Modifier.sharedBounds(
+                    sharedContentState = rememberSharedContentState(
+                        key = "aethra-wallet-content"
+                    ),
+                    animatedVisibilityScope = visibilityScope,
+                    boundsTransform = walletBoundsTransform,
+                    resizeMode =
+                        SharedTransitionScope.ResizeMode.scaleToBounds(
+                            contentScale = ContentScale.Fit
+                        ),
+                    enter = fadeIn(
+                        tween(
+                            durationMillis = 300,
+                            delayMillis = 350
+                        )
+                    ),
+                    exit = fadeOut(
+                        tween(
+                            durationMillis = 200,
+                            delayMillis = 200
+                        )
+                    ),
+                    zIndexInOverlay = 2f
+                )
             }
 
-            StartScreen.Error -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .safeDrawingPadding()
-                        .padding(24.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "We couldn't open Aethra. Please try again.",
-                        color = Color.White,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { retryCount += 1 },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.White,
-                            contentColor = AethraColors.Navy
-                        )
+            when (currentScreen) {
+                StartScreen.Loading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .safeDrawingPadding(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "Try again")
+                        CircularProgressIndicator(
+                            color = Color.White
+                        )
+                    }
+                }
+
+                StartScreen.Onboarding -> {
+                    OnboardingScreen(
+                        cardSurfaceModifier = surfaceModifier,
+                        cardContentModifier = contentModifier,
+                        isSaving = isSaving,
+                        errorMessage = saveError,
+                        onGetStarted = {
+                            if (
+                                !isSaving &&
+                                screen == StartScreen.Onboarding
+                            ) {
+                                isSaving = true
+                                saveError = null
+
+                                scope.launch {
+                                    try {
+                                        preferences.complete()
+                                        screen = StartScreen.Home
+                                    } catch (_: IOException) {
+                                        saveError =
+                                            "We couldn't save your " +
+                                                    "progress. Please try again."
+                                    } finally {
+                                        isSaving = false
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+
+                StartScreen.Home -> {
+                    HomeScreen(
+                        cardSurfaceModifier = surfaceModifier,
+                        cardContentModifier = contentModifier
+                    )
+                }
+
+                StartScreen.Error -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .safeDrawingPadding()
+                            .padding(24.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment =
+                            Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "We couldn't open Aethra. Please try again.",
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        Button(
+                            onClick = {
+                                retryCount += 1
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White,
+                                contentColor = AethraColors.Navy
+                            )
+                        ) {
+                            Text(text = "Try again")
+                        }
                     }
                 }
             }
