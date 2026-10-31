@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.renzien.aethra.ui.components.GlassCard
 import com.renzien.aethra.ui.theme.AethraColors
+import com.renzien.aethra.ui.components.AethraLogo
 
 @Composable
 fun HomeScreen(){
@@ -85,14 +86,7 @@ fun HomeScreen(){
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 32.dp)
         ) {
-            Text(
-                text = "Aethra",
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 4.sp
-            )
-
+            AethraLogo()
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
