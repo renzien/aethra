@@ -6,7 +6,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.renzien.aethra.ui.screens.HomeScreen
 import com.renzien.aethra.ui.theme.AethraTheme
 
 class MainActivity : ComponentActivity() {
@@ -24,7 +23,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             AethraTheme {
-                HomeScreen()
+                AethraApp()
             }
         }
     }
