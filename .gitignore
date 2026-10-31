@@ -1,0 +1,18 @@
+# Local configuration and generated files
+local.properties
+.gradle/
+.kotlin/
+**/build/
+
+# Local IDE settings
+.idea/
+*.iml
+
+# Native build files
+.cxx/
+.externalNativeBuild/
+
+# Signing files
+*.jks
+*.keystore
+keystore.properties
