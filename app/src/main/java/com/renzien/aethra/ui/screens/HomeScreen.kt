@@ -109,7 +109,7 @@ fun HomeScreen(
 
         item(key = "sample-data-note", contentType = "footer") {
             Text(
-                text = "Example data",
+                text = "Includes example data",
                 modifier = Modifier.padding(top = 4.dp),
                 color = AethraColors.MutedText,
                 fontSize = 12.sp

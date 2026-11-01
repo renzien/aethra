@@ -25,7 +25,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import com.renzien.aethra.data.AddTransactionResult
 import com.renzien.aethra.data.SampleTransactions
+import com.renzien.aethra.data.addTransaction
+import com.renzien.aethra.ui.TransactionListSaver
+import com.renzien.aethra.ui.components.AddTransactionButton
+import com.renzien.aethra.ui.components.AddTransactionSheet
 import com.renzien.aethra.ui.components.AethraBackground
 import com.renzien.aethra.ui.components.AethraTab
 import com.renzien.aethra.ui.components.BottomNavigationBackdrop
@@ -39,35 +44,25 @@ fun MainScreen(
     cardSurfaceModifier: Modifier = Modifier,
     cardContentModifier: Modifier = Modifier
 ) {
-    val transactions = remember {
-        SampleTransactions.create()
+    var transactions by rememberSaveable(stateSaver = TransactionListSaver) {
+        mutableStateOf(SampleTransactions.create())
     }
-
-    var selectedTab by rememberSaveable {
-        mutableStateOf(AethraTab.Home)
-    }
-
+    var selectedTab by rememberSaveable { mutableStateOf(AethraTab.Home) }
+    var showAddTransaction by rememberSaveable { mutableStateOf(false) }
     val stateHolder = rememberSaveableStateHolder()
     val hazeState = rememberHazeState()
     val density = LocalDensity.current
-
-    var navigationHeight by remember {
-        mutableStateOf(72.dp)
-    }
+    var navigationHeight by remember { mutableStateOf(72.dp) }
 
     val bottomSystemInset = WindowInsets.navigationBars
         .asPaddingValues()
         .calculateBottomPadding()
 
-    val backdropHeight =
-        navigationHeight + bottomSystemInset + 96.dp
-
-    val contentBottomPadding =
-        navigationHeight + 112.dp
+    val backdropHeight = navigationHeight + bottomSystemInset + 96.dp
+    val contentBottomPadding = navigationHeight + 112.dp
 
     BackHandler(
-        enabled = navigationEnabled &&
-                selectedTab != AethraTab.Home
+        enabled = navigationEnabled && !showAddTransaction && selectedTab != AethraTab.Home
     ) {
         selectedTab = AethraTab.Home
     }
@@ -84,45 +79,28 @@ fun MainScreen(
                 targetState = selectedTab,
                 modifier = Modifier.fillMaxSize(),
                 transitionSpec = {
-                    fadeIn(
-                        tween(220)
-                    ) togetherWith fadeOut(
-                        tween(120)
-                    )
+                    fadeIn(tween(220)) togetherWith fadeOut(tween(120))
                 },
                 label = "main tab transition"
             ) { tab ->
-                stateHolder.SaveableStateProvider(
-                    key = tab.name
-                ) {
+                stateHolder.SaveableStateProvider(key = tab.name) {
                     when (tab) {
-                        AethraTab.Home -> {
-                            HomeScreen(
-                                transactions = transactions,
-                                bottomContentPadding =
-                                    contentBottomPadding,
-                                cardSurfaceModifier =
-                                    cardSurfaceModifier,
-                                cardContentModifier =
-                                    cardContentModifier
-                            )
-                        }
+                        AethraTab.Home -> HomeScreen(
+                            transactions = transactions,
+                            bottomContentPadding = contentBottomPadding,
+                            cardSurfaceModifier = cardSurfaceModifier,
+                            cardContentModifier = cardContentModifier
+                        )
 
-                        AethraTab.Transactions -> {
-                            TransactionsScreen(
-                                transactions = transactions,
-                                bottomContentPadding =
-                                    contentBottomPadding
-                            )
-                        }
+                        AethraTab.Transactions -> TransactionsScreen(
+                            transactions = transactions,
+                            bottomContentPadding = contentBottomPadding
+                        )
 
-                        AethraTab.Insights -> {
-                            InsightsScreen(
-                                transactions = transactions,
-                                bottomContentPadding =
-                                    contentBottomPadding
-                            )
-                        }
+                        AethraTab.Insights -> InsightsScreen(
+                            transactions = transactions,
+                            bottomContentPadding = contentBottomPadding
+                        )
                     }
                 }
             }
@@ -131,31 +109,46 @@ fun MainScreen(
         BottomNavigationBackdrop(
             hazeState = hazeState,
             height = backdropHeight,
-            modifier = Modifier.align(
-                Alignment.BottomCenter
-            )
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+
+        AddTransactionButton(
+            onClick = { showAddTransaction = true },
+            enabled = navigationEnabled && !showAddTransaction,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(end = 24.dp, bottom = navigationHeight + 32.dp)
         )
 
         FloatingNavBar(
             selectedTab = selectedTab,
-            onTabSelected = {
-                selectedTab = it
-            },
+            onTabSelected = { selectedTab = it },
             hazeState = hazeState,
-            enabled = navigationEnabled,
+            enabled = navigationEnabled && !showAddTransaction,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(
-                    start = 20.dp,
-                    end = 20.dp,
-                    bottom = 16.dp
-                )
+                .padding(start = 20.dp, end = 20.dp, bottom = 16.dp)
                 .onSizeChanged {
-                    navigationHeight = with(density) {
-                        it.height.toDp()
-                    }
+                    navigationHeight = with(density) { it.height.toDp() }
                 }
+        )
+    }
+
+    if (showAddTransaction) {
+        AddTransactionSheet(
+            onDismiss = { showAddTransaction = false },
+            onSubmit = { draft ->
+                when (val result = addTransaction(transactions, draft)) {
+                    is AddTransactionResult.Added -> {
+                        // Replace the list so all derived values are recalculated.
+                        transactions = result.transactions
+                        null
+                    }
+                    is AddTransactionResult.Rejected -> result.errors
+                }
+            }
         )
     }
 }
