@@ -45,19 +45,34 @@ fun HomeScreen(
     val latestTransactions = remember(transactions) {
         transactions.sortedByDescending { it.date }
     }
-    val summary = remember(transactions) { calculateSummary(transactions) }
+
+    val summary = remember(transactions) {
+        calculateSummary(transactions)
+    }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().safeDrawingPadding(),
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding(),
         contentPadding = PaddingValues(
-            start = 24.dp, top = 32.dp, end = 24.dp, bottom = bottomContentPadding
+            start = 24.dp,
+            top = 32.dp,
+            end = 24.dp,
+            bottom = bottomContentPadding
         ),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(
+            12.dp
+        )
     ) {
-        item(key = "home-header", contentType = "header") {
+        item(
+            key = "home-header",
+            contentType = "header"
+        ) {
             Column {
                 AethraLogo()
+
                 Spacer(Modifier.height(12.dp))
+
                 Text(
                     text = "Your Finance,\nMore stable.",
                     color = Color.White,
@@ -65,11 +80,15 @@ fun HomeScreen(
                     lineHeight = 40.sp,
                     fontWeight = FontWeight.Medium
                 )
+
                 Spacer(Modifier.height(20.dp))
             }
         }
 
-        item(key = "balance-card", contentType = "balance") {
+        item(
+            key = "balance-card",
+            contentType = "balance"
+        ) {
             BalanceCard(
                 summary = summary,
                 transactionCount = transactions.size,
@@ -78,10 +97,16 @@ fun HomeScreen(
             )
         }
 
-        item(key = "transactions-heading", contentType = "heading") {
+        item(
+            key = "transactions-heading",
+            contentType = "heading"
+        ) {
             Text(
                 text = "Recent transactions",
-                modifier = Modifier.padding(top = 20.dp, bottom = 4.dp),
+                modifier = Modifier.padding(
+                    top = 20.dp,
+                    bottom = 4.dp
+                ),
                 color = Color.White,
                 fontSize = 22.sp,
                 lineHeight = 28.sp,
@@ -90,27 +115,49 @@ fun HomeScreen(
         }
 
         if (latestTransactions.isEmpty()) {
-            item(key = "empty-transactions", contentType = "empty") {
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Text("No transactions yet.", color = Color.White)
-                    Spacer(Modifier.height(8.dp))
+            item(
+                key = "empty-transactions",
+                contentType = "empty"
+            ) {
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(
-                        "Your income and expenses will appear here.",
+                        text = "No transactions yet.",
+                        color = Color.White
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Text(
+                        text = "Your income and expenses will appear here.",
                         color = AethraColors.MutedText,
                         fontSize = 14.sp
                     )
                 }
             }
         } else {
-            items(latestTransactions, key = { it.id }, contentType = { "transaction" }) { transaction ->
-                TransactionItem(transaction, Modifier.animateItem())
+            items(
+                items = latestTransactions,
+                key = { it.id },
+                contentType = { "transaction" }
+            ) { transaction ->
+                TransactionItem(
+                    transaction,
+                    Modifier.animateItem()
+                )
             }
         }
 
-        item(key = "sample-data-note", contentType = "footer") {
+        item(
+            key = "sample-data-note",
+            contentType = "footer"
+        ) {
             Text(
-                text = "Includes example data",
-                modifier = Modifier.padding(top = 4.dp),
+                text = "Stored on this device",
+                modifier = Modifier.padding(
+                    top = 4.dp
+                ),
                 color = AethraColors.MutedText,
                 fontSize = 12.sp
             )
@@ -130,8 +177,14 @@ private fun BalanceCard(
         surfaceModifier = surfaceModifier,
         contentModifier = contentModifier
     ) {
-        Text("Balance Amount", color = AethraColors.MutedText, fontSize = 14.sp)
+        Text(
+            text = "Balance Amount",
+            color = AethraColors.MutedText,
+            fontSize = 14.sp
+        )
+
         Spacer(Modifier.height(8.dp))
+
         Text(
             text = formatRupiah(summary.balance),
             color = Color.White,
@@ -139,13 +192,21 @@ private fun BalanceCard(
             lineHeight = 40.sp,
             fontWeight = FontWeight.Medium
         )
+
         Spacer(Modifier.height(16.dp))
 
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(50.dp))
-                .background(AethraColors.Mint.copy(alpha = 0.12f))
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .background(
+                    AethraColors.Mint.copy(
+                        alpha = 0.12f
+                    )
+                )
+                .padding(
+                    horizontal = 12.dp,
+                    vertical = 8.dp
+                )
         ) {
             Text(
                 text = if (transactionCount == 1) {
@@ -159,29 +220,53 @@ private fun BalanceCard(
         }
 
         Spacer(Modifier.height(28.dp))
-        HorizontalDivider(color = Color.White.copy(alpha = 0.16f))
+
+        HorizontalDivider(
+            color = Color.White.copy(
+                alpha = 0.16f
+            )
+        )
+
         Spacer(Modifier.height(20.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(
+                16.dp
+            )
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Income", color = AethraColors.MutedText, fontSize = 12.sp)
-                Spacer(Modifier.height(6.dp))
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(
-                    formatRupiah(summary.income),
+                    text = "Income",
+                    color = AethraColors.MutedText,
+                    fontSize = 12.sp
+                )
+
+                Spacer(Modifier.height(6.dp))
+
+                Text(
+                    text = formatRupiah(summary.income),
                     color = Color.White,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
                 )
             }
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Expense", color = AethraColors.MutedText, fontSize = 12.sp)
-                Spacer(Modifier.height(6.dp))
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(
-                    formatRupiah(summary.expense),
+                    text = "Expense",
+                    color = AethraColors.MutedText,
+                    fontSize = 12.sp
+                )
+
+                Spacer(Modifier.height(6.dp))
+
+                Text(
+                    text = formatRupiah(summary.expense),
                     color = Color.White,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium

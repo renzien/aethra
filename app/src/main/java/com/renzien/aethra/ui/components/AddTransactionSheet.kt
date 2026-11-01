@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
@@ -42,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -54,13 +56,13 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.renzien.aethra.data.TransactionDraft
 import com.renzien.aethra.data.TransactionFormErrors
 import com.renzien.aethra.data.TransactionType
 import com.renzien.aethra.data.dateFromDatePickerMillis
 import com.renzien.aethra.data.toDatePickerMillis
 import com.renzien.aethra.data.transactionCategories
+import com.renzien.aethra.ui.TransactionSaveState
 import com.renzien.aethra.ui.formatRupiah
 import com.renzien.aethra.ui.theme.AethraColors
 import java.time.LocalDate
@@ -71,30 +73,74 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionSheet(
+    requestId: String,
+    saveState: TransactionSaveState,
     onDismiss: () -> Unit,
-    onSubmit: (TransactionDraft) -> TransactionFormErrors?
+    onSubmit: (TransactionDraft) -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val isSaving =
+        saveState == TransactionSaveState.Saving(requestId)
+
+    val latestIsSaving by rememberUpdatedState(isSaving)
+
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { next ->
+            next != SheetValue.Hidden || !latestIsSaving
+        }
+    )
+
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
-    var title by rememberSaveable { mutableStateOf("") }
-    var amountInput by rememberSaveable { mutableStateOf("") }
-    var category by rememberSaveable { mutableStateOf("") }
-    var type by rememberSaveable { mutableStateOf(TransactionType.EXPENSE) }
-    var selectedDay by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
-    var showDatePicker by rememberSaveable { mutableStateOf(false) }
-    var categoryExpanded by remember { mutableStateOf(false) }
-    var errors by remember { mutableStateOf(TransactionFormErrors()) }
-    var isClosing by rememberSaveable { mutableStateOf(false) }
+    var title by rememberSaveable {
+        mutableStateOf("")
+    }
 
-    // A rotation during the closing animation must not allow a second Save.
+    var amountInput by rememberSaveable {
+        mutableStateOf("")
+    }
+
+    var category by rememberSaveable {
+        mutableStateOf("")
+    }
+
+    var type by rememberSaveable {
+        mutableStateOf(TransactionType.EXPENSE)
+    }
+
+    var selectedDay by rememberSaveable {
+        mutableStateOf(LocalDate.now().toEpochDay())
+    }
+
+    var showDatePicker by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    var categoryExpanded by remember {
+        mutableStateOf(false)
+    }
+
+    var errors by remember {
+        mutableStateOf(TransactionFormErrors())
+    }
+
+    var isClosing by rememberSaveable {
+        mutableStateOf(false)
+    }
+
     LaunchedEffect(Unit) {
-        if (isClosing) onDismiss()
+        if (isClosing) {
+            onDismiss()
+        }
     }
 
     val selectedDate = LocalDate.ofEpochDay(selectedDay)
-    val categories = remember(type) { transactionCategories(type) }
+
+    val categories = remember(type) {
+        transactionCategories(type)
+    }
+
     val colorScheme = remember {
         darkColorScheme(
             primary = AethraColors.Mint,
@@ -117,72 +163,152 @@ fun AddTransactionSheet(
     }
 
     fun closeSheet() {
-        if (isClosing) return
+        if (isClosing || latestIsSaving) {
+            return
+        }
+
         isClosing = true
         focusManager.clearFocus()
+
         scope.launch {
             sheetState.hide()
-            if (!sheetState.isVisible) onDismiss()
+
+            if (!sheetState.isVisible) {
+                onDismiss()
+            }
         }
     }
 
-    MaterialTheme(colorScheme = colorScheme, typography = MaterialTheme.typography) {
+    LaunchedEffect(saveState, requestId) {
+        when (saveState) {
+            is TransactionSaveState.Failed -> {
+                if (saveState.requestId == requestId) {
+                    errors = saveState.errors
+                }
+            }
+
+            is TransactionSaveState.Saved -> {
+                if (saveState.requestId == requestId) {
+                    closeSheet()
+                }
+            }
+
+            else -> Unit
+        }
+    }
+
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = MaterialTheme.typography
+    ) {
         ModalBottomSheet(
-            onDismissRequest = { if (!isClosing) onDismiss() },
+            onDismissRequest = {
+                if (!isClosing && !isSaving) {
+                    onDismiss()
+                }
+            },
             sheetState = sheetState,
-            sheetGesturesEnabled = !isClosing,
-            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+            sheetGesturesEnabled = !isClosing && !isSaving,
+            shape = RoundedCornerShape(
+                topStart = 32.dp,
+                topEnd = 32.dp
+            ),
             containerColor = AethraColors.Navy,
             contentColor = Color.White,
-            scrimColor = AethraColors.Navy.copy(alpha = 0.6f),
+            scrimColor = AethraColors.Navy.copy(
+                alpha = 0.6f
+            ),
             dragHandle = {
-                BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.28f))
+                BottomSheetDefaults.DragHandle(
+                    color = Color.White.copy(alpha = 0.28f)
+                )
             }
         ) {
-            // The modal handles IME/system insets; scrolling keeps Save reachable.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
                     .background(
                         Brush.verticalGradient(
-                            listOf(AethraColors.Navy, AethraColors.Ocean.copy(alpha = 0.5f))
+                            listOf(
+                                AethraColors.Navy,
+                                AethraColors.Ocean.copy(
+                                    alpha = 0.5f
+                                )
+                            )
                         )
                     )
-                    .padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .padding(
+                        start = 24.dp,
+                        end = 24.dp,
+                        bottom = 24.dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(
+                    14.dp
+                )
             ) {
                 Column {
                     Text(
-                        "New transaction",
+                        text = "New transaction",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
+
                     Spacer(Modifier.height(6.dp))
-                    Text("A small step for a clearer balance.", color = AethraColors.MutedText)
+
+                    Text(
+                        text = "A small step for a clearer balance.",
+                        color = AethraColors.MutedText
+                    )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(
+                        10.dp
+                    )
+                ) {
                     TransactionType.entries.forEach { option ->
                         FilterChip(
                             selected = type == option,
-                            enabled = !isClosing,
+                            enabled = !isClosing && !isSaving,
                             onClick = {
                                 if (type != option) {
                                     type = option
                                     category = ""
-                                    errors = errors.copy(category = null, general = null)
+
+                                    errors = errors.copy(
+                                        category = null,
+                                        general = null
+                                    )
                                 }
                             },
                             label = {
-                                Text(if (option == TransactionType.EXPENSE) "Expense" else "Income")
+                                Text(
+                                    if (
+                                        option ==
+                                        TransactionType.EXPENSE
+                                    ) {
+                                        "Expense"
+                                    } else {
+                                        "Income"
+                                    }
+                                )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                containerColor = Color.White.copy(alpha = 0.04f),
-                                selectedContainerColor = AethraColors.Mint.copy(alpha = 0.16f),
+                                containerColor = Color.White.copy(
+                                    alpha = 0.04f
+                                ),
+                                selectedContainerColor = AethraColors.Mint.copy(
+                                    alpha = 0.16f
+                                ),
                                 selectedLabelColor = AethraColors.Mint
                             ),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = Color.White.copy(
+                                    alpha = 0.2f
+                                )
+                            )
                         )
                     }
                 }
@@ -191,29 +317,51 @@ fun AddTransactionSheet(
                     value = amountInput,
                     onValueChange = {
                         amountInput = it
-                        errors = errors.copy(amount = null, general = null)
+
+                        errors = errors.copy(
+                            amount = null,
+                            general = null
+                        )
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isClosing,
+                    enabled = !isClosing && !isSaving,
                     singleLine = true,
-                    label = { Text("Amount") },
-                    prefix = { Text("Rp ") },
-                    placeholder = { Text("100000") },
+                    label = {
+                        Text("Amount")
+                    },
+                    prefix = {
+                        Text("Rp ")
+                    },
+                    placeholder = {
+                        Text("100000")
+                    },
                     textStyle = MaterialTheme.typography.headlineSmall,
                     isError = errors.amount != null,
                     supportingText = {
-                        val preview = amountInput.trim().takeIf { input ->
-                            input.isNotEmpty() && input.all { it in '0'..'9' }
-                        }?.toLongOrNull()?.takeIf { it > 0L }
-                        Text(errors.amount ?: preview?.let(::formatRupiah)
-                        ?: "Whole rupiah, without dots or commas.")
+                        val preview = amountInput.trim()
+                            .takeIf { input ->
+                                input.isNotEmpty() &&
+                                        input.all { it in '0'..'9' }
+                            }
+                            ?.toLongOrNull()
+                            ?.takeIf { it > 0L }
+
+                        Text(
+                            errors.amount
+                                ?: preview?.let(::formatRupiah)
+                                ?: "Whole rupiah, without dots or commas."
+                        )
                     },
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Next
                     ),
                     keyboardActions = KeyboardActions(
-                        onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                        onNext = {
+                            focusManager.moveFocus(
+                                FocusDirection.Next
+                            )
+                        }
                     ),
                     shape = RoundedCornerShape(20.dp)
                 )
@@ -222,27 +370,43 @@ fun AddTransactionSheet(
                     value = title,
                     onValueChange = {
                         title = it
-                        errors = errors.copy(title = null, general = null)
+
+                        errors = errors.copy(
+                            title = null,
+                            general = null
+                        )
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isClosing,
+                    enabled = !isClosing && !isSaving,
                     singleLine = true,
-                    label = { Text("Transaction name") },
-                    placeholder = { Text("For example, lunch with friends") },
+                    label = {
+                        Text("Transaction name")
+                    },
+                    placeholder = {
+                        Text("For example, lunch with friends")
+                    },
                     isError = errors.title != null,
-                    supportingText = errors.title?.let { message -> { Text(message) } },
+                    supportingText = errors.title?.let { message ->
+                        {
+                            Text(message)
+                        }
+                    },
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Sentences,
                         imeAction = ImeAction.Done
                     ),
-                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            focusManager.clearFocus()
+                        }
+                    ),
                     shape = RoundedCornerShape(20.dp)
                 )
 
                 ExposedDropdownMenuBox(
                     expanded = categoryExpanded,
                     onExpandedChange = { expanded ->
-                        if (!isClosing) {
+                        if (!isClosing && !isSaving) {
                             focusManager.clearFocus()
                             categoryExpanded = expanded
                         }
@@ -255,32 +419,53 @@ fun AddTransactionSheet(
                             .fillMaxWidth()
                             .menuAnchor(
                                 type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                                enabled = !isClosing
+                                enabled = !isClosing && !isSaving
                             ),
-                        enabled = !isClosing,
+                        enabled = !isClosing && !isSaving,
                         readOnly = true,
                         singleLine = true,
-                        label = { Text("Category") },
-                        placeholder = { Text("Choose a category") },
+                        label = {
+                            Text("Category")
+                        },
+                        placeholder = {
+                            Text("Choose a category")
+                        },
                         trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded)
+                            ExposedDropdownMenuDefaults.TrailingIcon(
+                                expanded = categoryExpanded
+                            )
                         },
                         isError = errors.category != null,
-                        supportingText = errors.category?.let { message -> { Text(message) } },
+                        supportingText = errors.category?.let { message ->
+                            {
+                                Text(message)
+                            }
+                        },
                         shape = RoundedCornerShape(20.dp)
                     )
+
                     ExposedDropdownMenu(
                         expanded = categoryExpanded,
-                        onDismissRequest = { categoryExpanded = false },
-                        modifier = Modifier.heightIn(max = 280.dp)
+                        onDismissRequest = {
+                            categoryExpanded = false
+                        },
+                        modifier = Modifier.heightIn(
+                            max = 280.dp
+                        )
                     ) {
                         categories.forEach { option ->
                             DropdownMenuItem(
-                                text = { Text(option) },
+                                text = {
+                                    Text(option)
+                                },
                                 onClick = {
                                     category = option
                                     categoryExpanded = false
-                                    errors = errors.copy(category = null, general = null)
+
+                                    errors = errors.copy(
+                                        category = null,
+                                        general = null
+                                    )
                                 }
                             )
                         }
@@ -292,19 +477,33 @@ fun AddTransactionSheet(
                         focusManager.clearFocus()
                         showDatePicker = true
                     },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                    enabled = !isClosing,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp),
+                    enabled = !isClosing && !isSaving,
                     shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.32f))
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = Color.White.copy(
+                            alpha = 0.32f
+                        )
+                    )
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Date", color = AethraColors.MutedText)
                         Text(
-                            selectedDate.format(
-                                DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH)
+                            text = "Date",
+                            color = AethraColors.MutedText
+                        )
+
+                        Text(
+                            text = selectedDate.format(
+                                DateTimeFormatter.ofPattern(
+                                    "dd MMM yyyy",
+                                    Locale.ENGLISH
+                                )
                             ),
                             color = Color.White
                         )
@@ -312,58 +511,97 @@ fun AddTransactionSheet(
                 }
 
                 errors.general?.let { message ->
-                    Text(message, color = MaterialTheme.colorScheme.error)
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
 
                 Button(
                     onClick = {
-                        if (!isClosing) {
-                            val failure = onSubmit(
-                                TransactionDraft(title, category, amountInput, type, selectedDate)
+                        if (!isClosing && !isSaving) {
+                            focusManager.clearFocus()
+
+                            onSubmit(
+                                TransactionDraft(
+                                    title = title,
+                                    category = category,
+                                    amountInput = amountInput,
+                                    type = type,
+                                    date = selectedDate
+                                )
                             )
-                            if (failure == null) closeSheet() else errors = failure
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                    enabled = !isClosing,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp),
+                    enabled = !isClosing && !isSaving,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.White,
                         contentColor = AethraColors.Navy
                     ),
                     shape = RoundedCornerShape(50.dp)
                 ) {
-                    Text("Save transaction", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (isSaving) {
+                            "Saving..."
+                        } else {
+                            "Save transaction"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
                 TextButton(
-                    onClick = { closeSheet() },
-                    enabled = !isClosing,
+                    onClick = {
+                        closeSheet()
+                    },
+                    enabled = !isClosing && !isSaving,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Cancel", color = AethraColors.MutedText)
+                    Text(
+                        text = "Cancel",
+                        color = AethraColors.MutedText
+                    )
                 }
             }
         }
 
-        if (showDatePicker && !isClosing) {
+        if (showDatePicker && !isClosing && !isSaving) {
             val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = selectedDate.toDatePickerMillis()
+                initialSelectedDateMillis =
+                    selectedDate.toDatePickerMillis()
             )
+
             DatePickerDialog(
-                onDismissRequest = { showDatePicker = false },
+                onDismissRequest = {
+                    showDatePicker = false
+                },
                 confirmButton = {
                     TextButton(
                         enabled = datePickerState.selectedDateMillis != null,
                         onClick = {
                             datePickerState.selectedDateMillis?.let {
-                                selectedDay = dateFromDatePickerMillis(it).toEpochDay()
+                                selectedDay = dateFromDatePickerMillis(
+                                    it
+                                ).toEpochDay()
                             }
+
                             showDatePicker = false
                         }
-                    ) { Text("Use date") }
+                    ) {
+                        Text("Use date")
+                    }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                    TextButton(
+                        onClick = {
+                            showDatePicker = false
+                        }
+                    ) {
+                        Text("Cancel")
+                    }
                 }
             ) {
                 DatePicker(state = datePickerState)
