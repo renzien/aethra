@@ -35,12 +35,34 @@ sealed interface TransactionSaveState {
     ) : TransactionSaveState
 }
 
+sealed interface TransactionDeleteState {
+    data object Idle : TransactionDeleteState
+
+    data class Deleting(
+        val id: String
+    ) : TransactionDeleteState
+
+    data class Deleted(
+        val id: String
+    ) : TransactionDeleteState
+
+    class Failed(
+        val id: String,
+        val message: String
+    ) : TransactionDeleteState
+}
+
 data class TransactionsUiState(
     val transactions: List<Transaction> = emptyList(),
     val isLoading: Boolean = true,
     val loadError: String? = null,
-    val saveState: TransactionSaveState = TransactionSaveState.Idle
-)
+    val saveState: TransactionSaveState = TransactionSaveState.Idle,
+    val deleteState: TransactionDeleteState = TransactionDeleteState.Idle
+) {
+    val isBusy: Boolean
+        get() = saveState is TransactionSaveState.Saving ||
+                deleteState is TransactionDeleteState.Deleting
+}
 
 class TransactionViewModel(
     private val repository: TransactionRepository
@@ -50,6 +72,9 @@ class TransactionViewModel(
     )
 
     val uiState = mutableUiState.asStateFlow()
+
+    val isBusy: Boolean
+        get() = mutableUiState.value.isBusy
 
     private var loadJob: Job? = null
 
@@ -95,15 +120,16 @@ class TransactionViewModel(
 
     fun submit(
         draft: TransactionDraft,
-        requestId: String
+        requestId: String,
+        transactionId: String? = null
     ) {
         val state = mutableUiState.value
 
-        if (state.isLoading || state.loadError != null) {
-            return
-        }
-
-        if (state.saveState is TransactionSaveState.Saving) {
+        if (
+            state.isLoading ||
+            state.loadError != null ||
+            state.isBusy
+        ) {
             return
         }
 
@@ -128,7 +154,6 @@ class TransactionViewModel(
             return
         }
 
-        // Langsung ubah status agar dua tap cepat tidak memulai dua penyimpanan.
         mutableUiState.update {
             it.copy(
                 saveState = TransactionSaveState.Saving(
@@ -139,25 +164,26 @@ class TransactionViewModel(
 
         viewModelScope.launch {
             val result = try {
-                val failure = repository.save(
-                    draft = draft,
-                    requestId = requestId
-                )
+                val failure = if (transactionId == null) {
+                    repository.save(draft, requestId)
+                } else {
+                    repository.update(transactionId, draft)
+                }
 
                 if (failure == null) {
                     TransactionSaveState.Saved(requestId)
                 } else {
                     TransactionSaveState.Failed(
-                        requestId = requestId,
-                        errors = failure
+                        requestId,
+                        failure
                     )
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
                 TransactionSaveState.Failed(
-                    requestId = requestId,
-                    errors = TransactionFormErrors(
+                    requestId,
+                    TransactionFormErrors(
                         general = "We couldn't save this transaction. Please try again."
                     )
                 )
@@ -169,14 +195,66 @@ class TransactionViewModel(
         }
     }
 
-    fun clearSaveResult() {
+    fun delete(id: String) {
+        val state = mutableUiState.value
+
         if (
-            mutableUiState.value.saveState !is
-                    TransactionSaveState.Saving
+            state.isLoading ||
+            state.loadError != null ||
+            state.isBusy
         ) {
+            return
+        }
+
+        if (
+            state.deleteState ==
+            TransactionDeleteState.Deleted(id)
+        ) {
+            return
+        }
+
+        mutableUiState.update {
+            it.copy(
+                deleteState = TransactionDeleteState.Deleting(
+                    id
+                )
+            )
+        }
+
+        viewModelScope.launch {
+            val result = try {
+                repository.delete(id)
+                TransactionDeleteState.Deleted(id)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                TransactionDeleteState.Failed(
+                    id = id,
+                    message = "We couldn't delete this transaction. Please try again."
+                )
+            }
+
+            mutableUiState.update {
+                it.copy(deleteState = result)
+            }
+        }
+    }
+
+    fun clearSaveResult() {
+        if (!isBusy) {
             mutableUiState.update {
                 it.copy(
                     saveState = TransactionSaveState.Idle
+                )
+            }
+        }
+    }
+
+    fun clearDeleteResult() {
+        if (!isBusy) {
+            mutableUiState.update {
+                it.copy(
+                    deleteState = TransactionDeleteState.Idle
                 )
             }
         }
@@ -200,7 +278,7 @@ class TransactionViewModel(
 
                     @Suppress("UNCHECKED_CAST")
                     return TransactionViewModel(
-                        repository = TransactionRepository(
+                        TransactionRepository(
                             AethraDatabase.getInstance(appContext)
                         )
                     ) as T

@@ -40,7 +40,8 @@ fun HomeScreen(
     transactions: List<Transaction>,
     bottomContentPadding: Dp = 116.dp,
     cardSurfaceModifier: Modifier = Modifier,
-    cardContentModifier: Modifier = Modifier
+    cardContentModifier: Modifier = Modifier,
+    onTransactionClick: (Transaction) -> Unit = {}
 ) {
     val latestTransactions = remember(transactions) {
         transactions.sortedByDescending { it.date }
@@ -60,9 +61,7 @@ fun HomeScreen(
             end = 24.dp,
             bottom = bottomContentPadding
         ),
-        verticalArrangement = Arrangement.spacedBy(
-            12.dp
-        )
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item(
             key = "home-header",
@@ -143,8 +142,11 @@ fun HomeScreen(
                 contentType = { "transaction" }
             ) { transaction ->
                 TransactionItem(
-                    transaction,
-                    Modifier.animateItem()
+                    transaction = transaction,
+                    modifier = Modifier.animateItem(),
+                    onClick = {
+                        onTransactionClick(transaction)
+                    }
                 )
             }
         }
@@ -155,9 +157,7 @@ fun HomeScreen(
         ) {
             Text(
                 text = "Stored on this device",
-                modifier = Modifier.padding(
-                    top = 4.dp
-                ),
+                modifier = Modifier.padding(top = 4.dp),
                 color = AethraColors.MutedText,
                 fontSize = 12.sp
             )
@@ -199,9 +199,7 @@ private fun BalanceCard(
             modifier = Modifier
                 .clip(RoundedCornerShape(50.dp))
                 .background(
-                    AethraColors.Mint.copy(
-                        alpha = 0.12f
-                    )
+                    AethraColors.Mint.copy(alpha = 0.12f)
                 )
                 .padding(
                     horizontal = 12.dp,
@@ -222,9 +220,7 @@ private fun BalanceCard(
         Spacer(Modifier.height(28.dp))
 
         HorizontalDivider(
-            color = Color.White.copy(
-                alpha = 0.16f
-            )
+            color = Color.White.copy(alpha = 0.16f)
         )
 
         Spacer(Modifier.height(20.dp))
@@ -235,9 +231,7 @@ private fun BalanceCard(
                 16.dp
             )
         ) {
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Income",
                     color = AethraColors.MutedText,
@@ -254,9 +248,7 @@ private fun BalanceCard(
                 )
             }
 
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Expense",
                     color = AethraColors.MutedText,

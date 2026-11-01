@@ -3,6 +3,7 @@ package com.renzien.aethra.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,6 +24,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,7 +39,8 @@ import com.renzien.aethra.ui.theme.AethraColors
 @Composable
 fun TransactionItem(
     transaction: Transaction,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
     val isIncome = transaction.type == TransactionType.INCOME
 
@@ -61,13 +64,22 @@ fun TransactionItem(
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {}
             .clip(shape)
-            .background(
-                Color.White.copy(alpha = 0.08f)
-            )
+            .background(Color.White.copy(alpha = 0.08f))
             .border(
                 width = 1.dp,
                 color = Color.White.copy(alpha = 0.12f),
                 shape = shape
+            )
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        role = Role.Button,
+                        onClickLabel = "View transaction details",
+                        onClick = onClick
+                    )
+                } else {
+                    Modifier
+                }
             )
             .padding(16.dp)
     ) {
@@ -96,7 +108,9 @@ fun TransactionItem(
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(
+                    4.dp
+                )
             ) {
                 Text(
                     text = transaction.title,
@@ -171,25 +185,25 @@ private fun DirectionIcon(
     Canvas(modifier = Modifier.size(20.dp)) {
         val start = if (isIncome) {
             Offset(
-                x = size.width * 0.75f,
-                y = size.height * 0.25f
+                size.width * 0.75f,
+                size.height * 0.25f
             )
         } else {
             Offset(
-                x = size.width * 0.25f,
-                y = size.height * 0.75f
+                size.width * 0.25f,
+                size.height * 0.75f
             )
         }
 
         val end = if (isIncome) {
             Offset(
-                x = size.width * 0.25f,
-                y = size.height * 0.75f
+                size.width * 0.25f,
+                size.height * 0.75f
             )
         } else {
             Offset(
-                x = size.width * 0.75f,
-                y = size.height * 0.25f
+                size.width * 0.75f,
+                size.height * 0.25f
             )
         }
 
@@ -208,8 +222,8 @@ private fun DirectionIcon(
             color = tint,
             start = end,
             end = Offset(
-                x = end.x + size.width * 0.4f * direction,
-                y = end.y
+                end.x + size.width * 0.4f * direction,
+                end.y
             ),
             strokeWidth = stroke,
             cap = StrokeCap.Round
@@ -219,8 +233,8 @@ private fun DirectionIcon(
             color = tint,
             start = end,
             end = Offset(
-                x = end.x,
-                y = end.y - size.height * 0.4f * direction
+                end.x,
+                end.y - size.height * 0.4f * direction
             ),
             strokeWidth = stroke,
             cap = StrokeCap.Round

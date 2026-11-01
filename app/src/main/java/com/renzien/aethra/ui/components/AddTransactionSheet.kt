@@ -56,6 +56,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.renzien.aethra.data.Transaction
 import com.renzien.aethra.data.TransactionDraft
 import com.renzien.aethra.data.TransactionFormErrors
 import com.renzien.aethra.data.TransactionType
@@ -76,44 +77,60 @@ fun AddTransactionSheet(
     requestId: String,
     saveState: TransactionSaveState,
     onDismiss: () -> Unit,
-    onSubmit: (TransactionDraft) -> Unit
+    onSubmit: (TransactionDraft) -> Unit,
+    initialTransaction: Transaction? = null,
+    isEditing: Boolean = false,
+    canDismiss: () -> Boolean = { true }
 ) {
     val isSaving =
         saveState == TransactionSaveState.Saving(requestId)
 
     val latestIsSaving by rememberUpdatedState(isSaving)
+    val latestCanDismiss by rememberUpdatedState(canDismiss)
 
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
         confirmValueChange = { next ->
-            next != SheetValue.Hidden || !latestIsSaving
+            next != SheetValue.Hidden ||
+                    (!latestIsSaving && latestCanDismiss())
         }
     )
 
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
-    var title by rememberSaveable {
-        mutableStateOf("")
+    var title by rememberSaveable(requestId) {
+        mutableStateOf(initialTransaction?.title.orEmpty())
     }
 
-    var amountInput by rememberSaveable {
-        mutableStateOf("")
+    var amountInput by rememberSaveable(requestId) {
+        mutableStateOf(
+            initialTransaction?.amount?.toString().orEmpty()
+        )
     }
 
-    var category by rememberSaveable {
-        mutableStateOf("")
+    var category by rememberSaveable(requestId) {
+        mutableStateOf(
+            initialTransaction?.category.orEmpty()
+        )
     }
 
-    var type by rememberSaveable {
-        mutableStateOf(TransactionType.EXPENSE)
+    var type by rememberSaveable(requestId) {
+        mutableStateOf(
+            initialTransaction?.type ?: TransactionType.EXPENSE
+        )
     }
 
-    var selectedDay by rememberSaveable {
-        mutableStateOf(LocalDate.now().toEpochDay())
+    var selectedDay by rememberSaveable(requestId) {
+        mutableStateOf(
+            (
+                    initialTransaction?.date?.toLocalDate()
+                        ?: LocalDate.now()
+                    ).toEpochDay()
+        )
     }
 
-    var showDatePicker by rememberSaveable {
+    var showDatePicker by rememberSaveable(requestId) {
         mutableStateOf(false)
     }
 
@@ -125,7 +142,7 @@ fun AddTransactionSheet(
         mutableStateOf(TransactionFormErrors())
     }
 
-    var isClosing by rememberSaveable {
+    var isClosing by rememberSaveable(requestId) {
         mutableStateOf(false)
     }
 
@@ -163,7 +180,11 @@ fun AddTransactionSheet(
     }
 
     fun closeSheet() {
-        if (isClosing || latestIsSaving) {
+        if (
+            isClosing ||
+            latestIsSaving ||
+            !latestCanDismiss()
+        ) {
             return
         }
 
@@ -203,7 +224,11 @@ fun AddTransactionSheet(
     ) {
         ModalBottomSheet(
             onDismissRequest = {
-                if (!isClosing && !isSaving) {
+                if (
+                    !isClosing &&
+                    !isSaving &&
+                    latestCanDismiss()
+                ) {
                     onDismiss()
                 }
             },
@@ -249,7 +274,11 @@ fun AddTransactionSheet(
             ) {
                 Column {
                     Text(
-                        text = "New transaction",
+                        text = if (isEditing) {
+                            "Edit transaction"
+                        } else {
+                            "New transaction"
+                        },
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -257,7 +286,11 @@ fun AddTransactionSheet(
                     Spacer(Modifier.height(6.dp))
 
                     Text(
-                        text = "A small step for a clearer balance.",
+                        text = if (isEditing) {
+                            "Update the details below."
+                        } else {
+                            "A small step for a clearer balance."
+                        },
                         color = AethraColors.MutedText
                     )
                 }
@@ -304,10 +337,8 @@ fun AddTransactionSheet(
                                 selectedLabelColor = AethraColors.Mint
                             ),
                             border = BorderStroke(
-                                width = 1.dp,
-                                color = Color.White.copy(
-                                    alpha = 0.2f
-                                )
+                                1.dp,
+                                Color.White.copy(alpha = 0.2f)
                             )
                         )
                     }
@@ -317,7 +348,6 @@ fun AddTransactionSheet(
                     value = amountInput,
                     onValueChange = {
                         amountInput = it
-
                         errors = errors.copy(
                             amount = null,
                             general = null
@@ -370,7 +400,6 @@ fun AddTransactionSheet(
                     value = title,
                     onValueChange = {
                         title = it
-
                         errors = errors.copy(
                             title = null,
                             general = null
@@ -461,7 +490,6 @@ fun AddTransactionSheet(
                                 onClick = {
                                     category = option
                                     categoryExpanded = false
-
                                     errors = errors.copy(
                                         category = null,
                                         general = null
@@ -483,10 +511,8 @@ fun AddTransactionSheet(
                     enabled = !isClosing && !isSaving,
                     shape = RoundedCornerShape(20.dp),
                     border = BorderStroke(
-                        width = 1.dp,
-                        color = Color.White.copy(
-                            alpha = 0.32f
-                        )
+                        1.dp,
+                        Color.White.copy(alpha = 0.32f)
                     )
                 ) {
                     Row(
@@ -546,6 +572,8 @@ fun AddTransactionSheet(
                     Text(
                         text = if (isSaving) {
                             "Saving..."
+                        } else if (isEditing) {
+                            "Save changes"
                         } else {
                             "Save transaction"
                         },

@@ -27,7 +27,6 @@ class TransactionRepository(
         }
 
         return database.withTransaction {
-            // ID yang sama tidak boleh menghasilkan transaksi ganda.
             if (dao.findById(requestId) != null) {
                 return@withTransaction null
             }
@@ -55,5 +54,53 @@ class TransactionRepository(
                 }
             }
         }
+    }
+
+    suspend fun update(
+        id: String,
+        draft: TransactionDraft
+    ): TransactionFormErrors? {
+        val errors = validateTransactionDraft(draft)
+
+        if (errors.hasErrors) {
+            return errors
+        }
+
+        return database.withTransaction {
+            val original = dao.findById(id)?.toTransaction()
+                ?: return@withTransaction TransactionFormErrors(
+                    general = "This transaction is no longer available."
+                )
+
+            val updated = original.copy(
+                title = draft.title.trim(),
+                category = draft.category,
+                amount = draft.amountInput.trim().toLong(),
+                type = draft.type,
+                date = draft.date.atTime(
+                    original.date.toLocalTime()
+                )
+            )
+
+            val others = dao.getAll()
+                .filterNot { it.id == id }
+                .map { it.toTransaction() }
+
+            try {
+                calculateSummary(others + updated)
+            } catch (_: ArithmeticException) {
+                return@withTransaction TransactionFormErrors(
+                    amount = "This amount would make your total too large."
+                )
+            }
+
+            check(dao.update(updated.toEntity()) == 1)
+
+            null
+        }
+    }
+
+    suspend fun delete(id: String) {
+        dao.deleteById(id)
     }
 }

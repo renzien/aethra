@@ -33,6 +33,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.renzien.aethra.data.Transaction
 import com.renzien.aethra.ui.TransactionSaveState
 import com.renzien.aethra.ui.TransactionViewModel
 import com.renzien.aethra.ui.components.AddTransactionButton
@@ -41,6 +42,7 @@ import com.renzien.aethra.ui.components.AethraBackground
 import com.renzien.aethra.ui.components.AethraTab
 import com.renzien.aethra.ui.components.BottomNavigationBackdrop
 import com.renzien.aethra.ui.components.FloatingNavBar
+import com.renzien.aethra.ui.components.TransactionDetailSheet
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import java.util.UUID
@@ -55,8 +57,17 @@ fun MainScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     val transactions = uiState.transactions
+
     val storageReady =
         !uiState.isLoading && uiState.loadError == null
+
+    var selectedId by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
+
+    var editingId by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
 
     var selectedTab by rememberSaveable {
         mutableStateOf(AethraTab.Home)
@@ -88,6 +99,45 @@ fun MainScreen(
     val contentBottomPadding =
         navigationHeight + 112.dp
 
+    fun openDetails(transaction: Transaction) {
+        if (
+            !navigationEnabled ||
+            !storageReady ||
+            viewModel.isBusy ||
+            showAddTransaction ||
+            selectedId != null
+        ) {
+            return
+        }
+
+        viewModel.clearSaveResult()
+        viewModel.clearDeleteResult()
+        selectedId = transaction.id
+    }
+
+    fun openForm(transaction: Transaction? = null) {
+        if (
+            !navigationEnabled ||
+            !storageReady ||
+            viewModel.isBusy ||
+            showAddTransaction
+        ) {
+            return
+        }
+
+        if (transaction == null && selectedId != null) {
+            return
+        }
+
+        viewModel.clearSaveResult()
+        viewModel.clearDeleteResult()
+
+        editingId = transaction?.id
+        requestId = UUID.randomUUID().toString()
+        selectedId = null
+        showAddTransaction = true
+    }
+
     LaunchedEffect(
         showAddTransaction,
         requestId,
@@ -106,6 +156,7 @@ fun MainScreen(
     BackHandler(
         enabled = navigationEnabled &&
                 !showAddTransaction &&
+                selectedId == null &&
                 selectedTab != AethraTab.Home
     ) {
         selectedTab = AethraTab.Home
@@ -160,14 +211,16 @@ fun MainScreen(
                                     transactions = transactions,
                                     bottomContentPadding = contentBottomPadding,
                                     cardSurfaceModifier = cardSurfaceModifier,
-                                    cardContentModifier = cardContentModifier
+                                    cardContentModifier = cardContentModifier,
+                                    onTransactionClick = ::openDetails
                                 )
                             }
 
                             AethraTab.Transactions -> {
                                 TransactionsScreen(
                                     transactions = transactions,
-                                    bottomContentPadding = contentBottomPadding
+                                    bottomContentPadding = contentBottomPadding,
+                                    onTransactionClick = ::openDetails
                                 )
                             }
 
@@ -202,14 +255,13 @@ fun MainScreen(
 
         AddTransactionButton(
             onClick = {
-                viewModel.clearSaveResult()
-
-                requestId = UUID.randomUUID().toString()
-                showAddTransaction = true
+                openForm()
             },
             enabled = navigationEnabled &&
                     storageReady &&
-                    !showAddTransaction,
+                    !uiState.isBusy &&
+                    !showAddTransaction &&
+                    selectedId == null,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
@@ -227,7 +279,9 @@ fun MainScreen(
             hazeState = hazeState,
             enabled = navigationEnabled &&
                     storageReady &&
-                    !showAddTransaction,
+                    !uiState.isBusy &&
+                    !showAddTransaction &&
+                    selectedId == null,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
@@ -249,15 +303,60 @@ fun MainScreen(
             requestId = requestId,
             saveState = uiState.saveState,
             onDismiss = {
-                showAddTransaction = false
-                viewModel.clearSaveResult()
+                if (!viewModel.isBusy) {
+                    showAddTransaction = false
+                    editingId = null
+                    viewModel.clearSaveResult()
+                }
             },
             onSubmit = { draft ->
                 viewModel.submit(
                     draft = draft,
-                    requestId = requestId
+                    requestId = requestId,
+                    transactionId = editingId
                 )
+            },
+            initialTransaction = transactions.firstOrNull {
+                it.id == editingId
+            },
+            isEditing = editingId != null,
+            canDismiss = {
+                !viewModel.isBusy
             }
+        )
+    }
+
+    selectedId?.let { id ->
+        TransactionDetailSheet(
+            transactionId = id,
+            transaction = transactions.firstOrNull {
+                it.id == id
+            },
+            deleteState = uiState.deleteState,
+            canDismiss = {
+                !viewModel.isBusy
+            },
+            onDismiss = {
+                if (!viewModel.isBusy) {
+                    selectedId = null
+                    viewModel.clearDeleteResult()
+                }
+            },
+            onEdit = {
+                val current = viewModel.uiState.value
+                    .transactions
+                    .firstOrNull { it.id == id }
+
+                if (current != null) {
+                    openForm(current)
+                } else {
+                    selectedId = null
+                }
+            },
+            onDelete = {
+                viewModel.delete(id)
+            },
+            onClearDeleteError = viewModel::clearDeleteResult
         )
     }
 }

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -19,4 +20,10 @@ interface TransactionDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(transaction: TransactionEntity)
+
+    @Update
+    suspend fun update(transaction: TransactionEntity): Int
+
+    @Query("DELETE FROM transactions WHERE id = :id")
+    suspend fun deleteById(id: String): Int
 }
