@@ -40,17 +40,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.renzien.aethra.data.OnboardingPreferences
-import com.renzien.aethra.ui.screens.HomeScreen
+import com.renzien.aethra.ui.screens.MainScreen
 import com.renzien.aethra.ui.screens.OnboardingScreen
 import com.renzien.aethra.ui.theme.AethraColors
 import java.io.IOException
 import kotlinx.coroutines.launch
 
 private enum class StartScreen {
-    Loading,
-    Onboarding,
-    Home,
-    Error
+    Loading, Onboarding, Home, Error
 }
 
 private const val WALLET_DURATION = 1200
@@ -69,7 +66,6 @@ private val walletBoundsTransform = BoundsTransform { start, end ->
 
     keyframes {
         durationMillis = WALLET_DURATION
-
         start at 0 using FastOutSlowInEasing
         closeUp at 700 using FastOutSlowInEasing
         end at WALLET_DURATION
@@ -79,38 +75,21 @@ private val walletBoundsTransform = BoundsTransform { start, end ->
 @Composable
 fun AethraApp() {
     val appContext = LocalContext.current.applicationContext
-
     val preferences = remember(appContext) {
         OnboardingPreferences(appContext)
     }
-
     val scope = rememberCoroutineScope()
 
-    var screen by remember {
-        mutableStateOf(StartScreen.Loading)
-    }
-
-    var retryCount by remember {
-        mutableStateOf(0)
-    }
-
-    var isSaving by remember {
-        mutableStateOf(false)
-    }
-
-    var saveError by remember {
-        mutableStateOf<String?>(null)
-    }
+    var screen by remember { mutableStateOf(StartScreen.Loading) }
+    var retryCount by remember { mutableStateOf(0) }
+    var isSaving by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(preferences, retryCount) {
         screen = StartScreen.Loading
-
         screen = try {
-            if (preferences.isCompleted()) {
-                StartScreen.Home
-            } else {
-                StartScreen.Onboarding
-            }
+            if (preferences.isCompleted()) StartScreen.Home
+            else StartScreen.Onboarding
         } catch (_: IOException) {
             StartScreen.Error
         }
@@ -121,10 +100,7 @@ fun AethraApp() {
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    listOf(
-                        AethraColors.Navy,
-                        AethraColors.Ocean
-                    )
+                    listOf(AethraColors.Navy, AethraColors.Ocean)
                 )
             )
     ) {
@@ -139,20 +115,10 @@ fun AethraApp() {
                             targetState == StartScreen.Home
 
                 if (isWalletTransition) {
-                    fadeIn(
-                        tween(
-                            durationMillis = 400,
-                            delayMillis = 800
-                        )
-                    ) togetherWith fadeOut(
-                        tween(durationMillis = 200)
-                    )
+                    fadeIn(tween(400, delayMillis = 800)) togetherWith
+                            fadeOut(tween(200))
                 } else {
-                    fadeIn(
-                        tween(durationMillis = 250)
-                    ) togetherWith fadeOut(
-                        tween(durationMillis = 150)
-                    )
+                    fadeIn(tween(250)) togetherWith fadeOut(tween(150))
                 }
             },
             label = "Aethra wallet zoom"
@@ -177,22 +143,11 @@ fun AethraApp() {
                     ),
                     animatedVisibilityScope = visibilityScope,
                     boundsTransform = walletBoundsTransform,
-                    resizeMode =
-                        SharedTransitionScope.ResizeMode.scaleToBounds(
-                            contentScale = ContentScale.Fit
-                        ),
-                    enter = fadeIn(
-                        tween(
-                            durationMillis = 300,
-                            delayMillis = 350
-                        )
+                    resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(
+                        contentScale = ContentScale.Fit
                     ),
-                    exit = fadeOut(
-                        tween(
-                            durationMillis = 200,
-                            delayMillis = 200
-                        )
-                    ),
+                    enter = fadeIn(tween(300, delayMillis = 350)),
+                    exit = fadeOut(tween(200, delayMillis = 200)),
                     zIndexInOverlay = 2f
                 )
             }
@@ -205,9 +160,7 @@ fun AethraApp() {
                             .safeDrawingPadding(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(
-                            color = Color.White
-                        )
+                        CircularProgressIndicator(color = Color.White)
                     }
                 }
 
@@ -218,21 +171,16 @@ fun AethraApp() {
                         isSaving = isSaving,
                         errorMessage = saveError,
                         onGetStarted = {
-                            if (
-                                !isSaving &&
-                                screen == StartScreen.Onboarding
-                            ) {
+                            if (!isSaving && screen == StartScreen.Onboarding) {
                                 isSaving = true
                                 saveError = null
-
                                 scope.launch {
                                     try {
                                         preferences.complete()
                                         screen = StartScreen.Home
                                     } catch (_: IOException) {
-                                        saveError =
-                                            "We couldn't save your " +
-                                                    "progress. Please try again."
+                                        saveError = "We couldn't save your " +
+                                                "progress. Please try again."
                                     } finally {
                                         isSaving = false
                                     }
@@ -243,7 +191,8 @@ fun AethraApp() {
                 }
 
                 StartScreen.Home -> {
-                    HomeScreen(
+                    MainScreen(
+                        navigationEnabled = !sharedScope.isTransitionActive,
                         cardSurfaceModifier = surfaceModifier,
                         cardContentModifier = contentModifier
                     )
@@ -256,27 +205,22 @@ fun AethraApp() {
                             .safeDrawingPadding()
                             .padding(24.dp),
                         verticalArrangement = Arrangement.Center,
-                        horizontalAlignment =
-                            Alignment.CenterHorizontally
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "We couldn't open Aethra. Please try again.",
+                            "We couldn't open Aethra. Please try again.",
                             color = Color.White,
                             textAlign = TextAlign.Center
                         )
-
                         Spacer(Modifier.height(16.dp))
-
                         Button(
-                            onClick = {
-                                retryCount += 1
-                            },
+                            onClick = { retryCount += 1 },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color.White,
                                 contentColor = AethraColors.Navy
                             )
                         ) {
-                            Text(text = "Try again")
+                            Text("Try again")
                         }
                     }
                 }
