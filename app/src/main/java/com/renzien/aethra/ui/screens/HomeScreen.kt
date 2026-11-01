@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,12 +13,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -26,8 +28,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.renzien.aethra.data.SampleTransactions
+import com.renzien.aethra.data.TransactionSummary
+import com.renzien.aethra.data.calculateSummary
 import com.renzien.aethra.ui.components.AethraLogo
 import com.renzien.aethra.ui.components.GlassCard
+import com.renzien.aethra.ui.components.TransactionItem
+import com.renzien.aethra.ui.formatRupiah
 import com.renzien.aethra.ui.theme.AethraColors
 
 @Composable
@@ -35,6 +42,18 @@ fun HomeScreen(
     cardSurfaceModifier: Modifier = Modifier,
     cardContentModifier: Modifier = Modifier
 ) {
+    val transactions = remember {
+        SampleTransactions.create()
+    }
+
+    val latestTransactions = remember(transactions) {
+        transactions.sortedByDescending { it.date }
+    }
+
+    val summary = remember(transactions) {
+        calculateSummary(transactions)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -52,6 +71,7 @@ fun HomeScreen(
                 x = size.width * 0.80f,
                 y = size.height * 0.37f
             )
+
             val radius = size.width * 0.85f
 
             drawCircle(
@@ -68,48 +88,121 @@ fun HomeScreen(
             )
         }
 
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .safeDrawingPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(
-                    horizontal = 24.dp,
-                    vertical = 32.dp
-                )
+                .safeDrawingPadding(),
+            contentPadding = PaddingValues(
+                horizontal = 24.dp,
+                vertical = 32.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            AethraLogo()
+            item(
+                key = "home-header",
+                contentType = "header"
+            ) {
+                Column {
+                    AethraLogo()
 
-            Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(12.dp))
 
-            Text(
-                text = "Your Finance,\nMore stable.",
-                color = Color.White,
-                fontSize = 32.sp,
-                lineHeight = 40.sp,
-                fontWeight = FontWeight.Medium
-            )
+                    Text(
+                        text = "Your Finance,\nMore stable.",
+                        color = Color.White,
+                        fontSize = 32.sp,
+                        lineHeight = 40.sp,
+                        fontWeight = FontWeight.Medium
+                    )
 
-            Spacer(Modifier.height(32.dp))
+                    Spacer(Modifier.height(20.dp))
+                }
+            }
 
-            BalanceCard(
-                surfaceModifier = cardSurfaceModifier,
-                contentModifier = cardContentModifier
-            )
+            item(
+                key = "balance-card",
+                contentType = "balance"
+            ) {
+                BalanceCard(
+                    summary = summary,
+                    transactionCount = transactions.size,
+                    surfaceModifier = cardSurfaceModifier,
+                    contentModifier = cardContentModifier
+                )
+            }
 
-            Spacer(Modifier.height(16.dp))
+            item(
+                key = "transactions-heading",
+                contentType = "heading"
+            ) {
+                Text(
+                    text = "Recent transactions",
+                    modifier = Modifier.padding(
+                        top = 20.dp,
+                        bottom = 4.dp
+                    ),
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    lineHeight = 28.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
 
-            Text(
-                text = "Example Data",
-                color = AethraColors.MutedText,
-                fontSize = 12.sp
-            )
+            if (latestTransactions.isEmpty()) {
+                item(
+                    key = "empty-transactions",
+                    contentType = "empty"
+                ) {
+                    GlassCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "No transactions yet.",
+                            color = Color.White
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Text(
+                            text = "Your income and expenses " +
+                                    "will appear here.",
+                            color = AethraColors.MutedText,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            } else {
+                items(
+                    items = latestTransactions,
+                    key = { it.id },
+                    contentType = { "transaction" }
+                ) { transaction ->
+                    TransactionItem(
+                        transaction = transaction,
+                        modifier = Modifier.animateItem()
+                    )
+                }
+            }
+
+            item(
+                key = "sample-data-note",
+                contentType = "footer"
+            ) {
+                Text(
+                    text = "Example data",
+                    modifier = Modifier.padding(top = 4.dp),
+                    color = AethraColors.MutedText,
+                    fontSize = 12.sp
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun BalanceCard(
+    summary: TransactionSummary,
+    transactionCount: Int,
     surfaceModifier: Modifier,
     contentModifier: Modifier
 ) {
@@ -127,7 +220,7 @@ private fun BalanceCard(
         Spacer(Modifier.height(8.dp))
 
         Text(
-            text = "Rp12.680.420",
+            text = formatRupiah(summary.balance),
             color = Color.White,
             fontSize = 32.sp,
             lineHeight = 40.sp,
@@ -148,7 +241,11 @@ private fun BalanceCard(
                 )
         ) {
             Text(
-                text = "+2.46% this month",
+                text = if (transactionCount == 1) {
+                    "1 transaction"
+                } else {
+                    "$transactionCount transactions"
+                },
                 color = AethraColors.Mint,
                 fontSize = 13.sp
             )
@@ -176,7 +273,7 @@ private fun BalanceCard(
                 Spacer(Modifier.height(6.dp))
 
                 Text(
-                    text = "Rp15.250.000",
+                    text = formatRupiah(summary.income),
                     color = Color.White,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
@@ -193,7 +290,7 @@ private fun BalanceCard(
                 Spacer(Modifier.height(6.dp))
 
                 Text(
-                    text = "Rp2.569.580",
+                    text = formatRupiah(summary.expense),
                     color = Color.White,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium

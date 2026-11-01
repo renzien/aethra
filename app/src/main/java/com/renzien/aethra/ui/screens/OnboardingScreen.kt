@@ -48,65 +48,78 @@ fun OnboardingScreen(
         modifier = Modifier
             .fillMaxSize()
             .safeDrawingPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+            .padding(24.dp)
     ) {
-        AethraLogo()
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            AethraLogo()
 
-        Text(
-            text = "A clearer view\nof your money.",
-            color = Color.White,
-            fontSize = 36.sp,
-            lineHeight = 44.sp,
-            fontWeight = FontWeight.Medium
-        )
-
-        WalletArtwork(
-            surfaceModifier = cardSurfaceModifier,
-            contentModifier = cardContentModifier
-        )
-
-        Text(
-            text = "See your balance, track your spending, " +
-                    "and build better money habits.",
-            color = AethraColors.MutedText,
-            fontSize = 16.sp,
-            lineHeight = 26.sp
-        )
-
-        if (errorMessage != null) {
             Text(
-                text = errorMessage,
+                text = "A clearer view\nof your money.",
                 color = Color.White,
-                fontSize = 14.sp
+                fontSize = 36.sp,
+                lineHeight = 44.sp,
+                fontWeight = FontWeight.Medium
+            )
+
+            WalletArtwork(
+                surfaceModifier = cardSurfaceModifier,
+                contentModifier = cardContentModifier
+            )
+
+            Text(
+                text = "See your balance, track your spending, " +
+                        "and build better money habits.",
+                color = AethraColors.MutedText,
+                fontSize = 16.sp,
+                lineHeight = 26.sp
             )
         }
 
-        Button(
-            onClick = onGetStarted,
-            enabled = !isSaving,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 56.dp),
-            shape = RoundedCornerShape(50.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.White,
-                contentColor = AethraColors.Navy,
-                disabledContainerColor = Color.White.copy(
-                    alpha = 0.70f
-                ),
-                disabledContentColor = AethraColors.Navy
-            )
+        Spacer(Modifier.height(24.dp))
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = if (isSaving) {
-                    "Getting ready..."
-                } else {
-                    "Get started"
-                },
-                fontWeight = FontWeight.Bold
-            )
+            if (errorMessage != null) {
+                Text(
+                    text = errorMessage,
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
+            }
+
+            Button(
+                onClick = onGetStarted,
+                enabled = !isSaving,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp),
+                shape = RoundedCornerShape(50.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White,
+                    contentColor = AethraColors.Navy,
+                    disabledContainerColor = Color.White.copy(
+                        alpha = 0.70f
+                    ),
+                    disabledContentColor = AethraColors.Navy
+                )
+            ) {
+                Text(
+                    text = if (isSaving) {
+                        "Getting ready..."
+                    } else {
+                        "Get started"
+                    },
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
