@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,10 +33,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.renzien.aethra.data.Transaction
 import com.renzien.aethra.data.TransactionType
+import com.renzien.aethra.ui.filterTransactionsByPeriod
 import com.renzien.aethra.ui.components.AethraLogo
 import com.renzien.aethra.ui.components.GlassCard
+import com.renzien.aethra.ui.components.PeriodSelector
 import com.renzien.aethra.ui.components.TransactionItem
 import com.renzien.aethra.ui.theme.AethraColors
+import java.time.YearMonth
 
 private enum class TransactionFilter(
     val label: String,
@@ -49,21 +54,46 @@ private enum class TransactionFilter(
 fun TransactionsScreen(
     transactions: List<Transaction>,
     bottomContentPadding: Dp = 116.dp,
-    onTransactionClick: (Transaction) -> Unit = {}
+    onTransactionClick: (Transaction) -> Unit = {},
+    selectedMonth: YearMonth? = null,
+    onMonthSelected: (YearMonth?) -> Unit = {}
 ) {
     var filter by rememberSaveable {
         mutableStateOf(TransactionFilter.All)
     }
 
-    val visibleTransactions = remember(transactions, filter) {
-        transactions
-            .filter {
-                filter.type == null || it.type == filter.type
-            }
-            .sortedByDescending { it.date }
+    val visible = remember(
+        transactions,
+        selectedMonth,
+        filter
+    ) {
+        filterTransactionsByPeriod(
+            transactions = transactions,
+            month = selectedMonth,
+            type = filter.type
+        ).sortedByDescending {
+            it.date
+        }
+    }
+
+    val listState = rememberLazyListState()
+
+    val filterKey =
+        "${selectedMonth ?: "all"}/${filter.name}"
+
+    var lastFilterKey by rememberSaveable {
+        mutableStateOf(filterKey)
+    }
+
+    LaunchedEffect(filterKey) {
+        if (lastFilterKey != filterKey) {
+            listState.scrollToItem(0)
+            lastFilterKey = filterKey
+        }
     }
 
     LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxSize()
             .safeDrawingPadding(),
@@ -73,7 +103,9 @@ fun TransactionsScreen(
             end = 24.dp,
             bottom = bottomContentPadding
         ),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(
+            12.dp
+        )
     ) {
         item(key = "transactions-header") {
             Column {
@@ -97,6 +129,14 @@ fun TransactionsScreen(
                     fontSize = 14.sp
                 )
             }
+        }
+
+        item(key = "period-selector") {
+            PeriodSelector(
+                transactions = transactions,
+                selectedMonth = selectedMonth,
+                onMonthSelected = onMonthSelected
+            )
         }
 
         item(key = "transaction-filters") {
@@ -128,26 +168,50 @@ fun TransactionsScreen(
                             selectedLabelColor = Color.White
                         ),
                         border = BorderStroke(
-                            1.dp,
-                            Color.White.copy(alpha = 0.18f)
+                            width = 1.dp,
+                            color = Color.White.copy(
+                                alpha = 0.18f
+                            )
                         )
                     )
                 }
             }
         }
 
-        if (visibleTransactions.isEmpty()) {
+        item(key = "transaction-count") {
+            Text(
+                text = if (visible.size == 1) {
+                    "1 transaction"
+                } else {
+                    "${visible.size} transactions"
+                },
+                color = AethraColors.MutedText,
+                fontSize = 12.sp
+            )
+        }
+
+        if (visible.isEmpty()) {
             item(key = "empty-filter") {
-                GlassCard(Modifier.fillMaxWidth()) {
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(
-                        text = "No transactions here yet.",
+                        text = if (transactions.isEmpty()) {
+                            "No transactions yet."
+                        } else {
+                            "No matching transactions."
+                        },
                         color = Color.White
                     )
 
                     Spacer(Modifier.height(8.dp))
 
                     Text(
-                        text = "Try another filter.",
+                        text = if (transactions.isEmpty()) {
+                            "Tap + to record your first transaction."
+                        } else {
+                            "Try another month or transaction type."
+                        },
                         color = AethraColors.MutedText,
                         fontSize = 14.sp
                     )
@@ -155,7 +219,7 @@ fun TransactionsScreen(
             }
         } else {
             items(
-                items = visibleTransactions,
+                items = visible,
                 key = { it.id },
                 contentType = { "transaction" }
             ) { transaction ->

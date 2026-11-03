@@ -45,6 +45,7 @@ import com.renzien.aethra.ui.components.FloatingNavBar
 import com.renzien.aethra.ui.components.TransactionDetailSheet
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
+import java.time.YearMonth
 import java.util.UUID
 
 @Composable
@@ -60,6 +61,18 @@ fun MainScreen(
 
     val storageReady =
         !uiState.isLoading && uiState.loadError == null
+
+    var selectedPeriod by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
+
+    val selectedMonth = remember(selectedPeriod) {
+        selectedPeriod?.let(YearMonth::parse)
+    }
+
+    fun changePeriod(month: YearMonth?) {
+        selectedPeriod = month?.toString()
+    }
 
     var selectedId by rememberSaveable {
         mutableStateOf<String?>(null)
@@ -220,14 +233,18 @@ fun MainScreen(
                                 TransactionsScreen(
                                     transactions = transactions,
                                     bottomContentPadding = contentBottomPadding,
-                                    onTransactionClick = ::openDetails
+                                    onTransactionClick = ::openDetails,
+                                    selectedMonth = selectedMonth,
+                                    onMonthSelected = ::changePeriod
                                 )
                             }
 
                             AethraTab.Insights -> {
                                 InsightsScreen(
                                     transactions = transactions,
-                                    bottomContentPadding = contentBottomPadding
+                                    bottomContentPadding = contentBottomPadding,
+                                    selectedMonth = selectedMonth,
+                                    onMonthSelected = ::changePeriod
                                 )
                             }
                         }
