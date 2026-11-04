@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style
+        name="Theme.Aethra.Window"
+        parent="android:style/Theme.Material.NoActionBar">
+
+        <item name="android:windowBackground">#041631</item>
+        <item name="android:statusBarColor">#041631</item>
+        <item name="android:navigationBarColor">#041631</item>
+
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+
+        <item name="android:windowSoftInputMode">adjustResize</item>
+
+    </style>
+
+    <style
+        name="Theme.Aethra.Starting"
+        parent="Theme.SplashScreen">
+
+        <item name="windowSplashScreenBackground">#041631</item>
+
+        <item name="windowSplashScreenAnimatedIcon">
+            @drawable/ic_aethra_foreground
+        </item>
+
+        <item name="postSplashScreenTheme">
+            @style/Theme.Aethra.Window
+        </item>
+
+        <item name="android:statusBarColor">#041631</item>
+        <item name="android:navigationBarColor">#041631</item>
+
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+
+    </style>
+
+</resources>

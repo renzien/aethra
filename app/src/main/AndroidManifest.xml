@@ -10,7 +10,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_aethra"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Aethra">
+        android:theme="@style/Theme.Aethra.Starting">
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -2,6 +2,8 @@ package com.renzien.aethra
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.BoundsTransform
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -25,6 +27,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +63,7 @@ private const val WALLET_DURATION = 1200
 
 private val walletBoundsTransform = BoundsTransform { start, end ->
     val zoom = 1.24f
+
     val halfWidth = end.width * zoom / 2f
     val halfHeight = end.height * zoom / 2f
 
@@ -80,7 +84,9 @@ private val walletBoundsTransform = BoundsTransform { start, end ->
 }
 
 @Composable
-fun AethraApp() {
+fun AethraApp(
+    onReadyToDraw: () -> Unit = {}
+) {
     val appContext = LocalContext.current.applicationContext
 
     val preferences = remember(appContext) {
@@ -113,23 +119,37 @@ fun AethraApp() {
         mutableStateOf<String?>(null)
     }
 
+    var startupReported by remember {
+        mutableStateOf(false)
+    }
+
+    // Dijalankan setelah komposisi halaman tujuan selesai.
+    // Halaman error juga melepas splash agar Try again bisa digunakan.
+    SideEffect {
+        if (
+            screen != StartScreen.Loading &&
+            !startupReported
+        ) {
+            startupReported = true
+            onReadyToDraw()
+        }
+    }
+
     LaunchedEffect(preferences, retryCount) {
         screen = StartScreen.Loading
 
         screen = try {
             val completed = preferences.isCompleted()
 
-            // Siapkan data kartu tujuan sebelum animasi onboarding dimulai.
+            // Data kartu Home disiapkan sebelum animasi onboarding.
             val loaded = transactionViewModel.uiState.first {
                 !it.isLoading
             }
 
-            if (loaded.loadError != null) {
-                StartScreen.Error
-            } else if (completed) {
-                StartScreen.Home
-            } else {
-                StartScreen.Onboarding
+            when {
+                loaded.loadError != null -> StartScreen.Error
+                completed -> StartScreen.Home
+                else -> StartScreen.Onboarding
             }
         } catch (_: IOException) {
             StartScreen.Error
@@ -158,16 +178,19 @@ fun AethraApp() {
                     initialState == StartScreen.Onboarding &&
                             targetState == StartScreen.Home
 
-                if (isWalletTransition) {
+                if (initialState == StartScreen.Loading) {
+                    (
+                            EnterTransition.None togetherWith
+                                    ExitTransition.None
+                            ).using(null)
+                } else if (isWalletTransition) {
                     fadeIn(
                         tween(
                             durationMillis = 400,
                             delayMillis = 800
                         )
                     ) togetherWith fadeOut(
-                        tween(
-                            durationMillis = 200
-                        )
+                        tween(200)
                     )
                 } else {
                     fadeIn(
@@ -199,9 +222,10 @@ fun AethraApp() {
                     ),
                     animatedVisibilityScope = visibilityScope,
                     boundsTransform = walletBoundsTransform,
-                    resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(
-                        contentScale = ContentScale.Fit
-                    ),
+                    resizeMode =
+                        SharedTransitionScope.ResizeMode.scaleToBounds(
+                            contentScale = ContentScale.Fit
+                        ),
                     enter = fadeIn(
                         tween(
                             durationMillis = 300,
@@ -249,10 +273,12 @@ fun AethraApp() {
                                 scope.launch {
                                     try {
                                         preferences.complete()
+
                                         screen = StartScreen.Home
                                     } catch (_: IOException) {
                                         saveError =
-                                            "We couldn't save your progress. Please try again."
+                                            "We couldn't save your " +
+                                                    "progress. Please try again."
                                     } finally {
                                         isSaving = false
                                     }
@@ -265,7 +291,8 @@ fun AethraApp() {
                 StartScreen.Home -> {
                     MainScreen(
                         viewModel = transactionViewModel,
-                        navigationEnabled = !sharedScope.isTransitionActive,
+                        navigationEnabled =
+                            !sharedScope.isTransitionActive,
                         cardSurfaceModifier = surfaceModifier,
                         cardContentModifier = contentModifier
                     )
@@ -278,15 +305,19 @@ fun AethraApp() {
                             .safeDrawingPadding()
                             .padding(24.dp),
                         verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        horizontalAlignment =
+                            Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "We couldn't open Aethra. Please try again.",
+                            text = "We couldn't open Aethra. " +
+                                    "Please try again.",
                             color = Color.White,
                             textAlign = TextAlign.Center
                         )
 
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(
+                            modifier = Modifier.height(16.dp)
+                        )
 
                         Button(
                             onClick = {
