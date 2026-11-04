@@ -2,9 +2,13 @@ package com.renzien.aethra.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,8 +33,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.renzien.aethra.data.Transaction
@@ -70,10 +80,6 @@ fun MainScreen(
         selectedPeriod?.let(YearMonth::parse)
     }
 
-    fun changePeriod(month: YearMonth?) {
-        selectedPeriod = month?.toString()
-    }
-
     var selectedId by rememberSaveable {
         mutableStateOf<String?>(null)
     }
@@ -94,6 +100,26 @@ fun MainScreen(
         mutableStateOf("")
     }
 
+    val tabTransition = updateTransition(
+        targetState = selectedTab,
+        label = "Aethra tab transition"
+    )
+
+    val tabIsMoving =
+        tabTransition.currentState != selectedTab ||
+                tabTransition.isRunning
+
+    val modalIsOpen =
+        showAddTransaction || selectedId != null
+
+    val canInteract =
+        navigationEnabled &&
+                storageReady &&
+                !uiState.isBusy &&
+                !modalIsOpen &&
+                !tabIsMoving
+
+    val layoutDirection = LocalLayoutDirection.current
     val stateHolder = rememberSaveableStateHolder()
     val hazeState = rememberHazeState()
     val density = LocalDensity.current
@@ -112,33 +138,59 @@ fun MainScreen(
     val contentBottomPadding =
         navigationHeight + 112.dp
 
-    fun openDetails(transaction: Transaction) {
-        if (
-            !navigationEnabled ||
-            !storageReady ||
-            viewModel.isBusy ||
-            showAddTransaction ||
-            selectedId != null
-        ) {
-            return
+    fun canInteractNow(): Boolean {
+        val latest = viewModel.uiState.value
+
+        return navigationEnabled &&
+                !latest.isLoading &&
+                latest.loadError == null &&
+                !latest.isBusy &&
+                !showAddTransaction &&
+                selectedId == null &&
+                tabTransition.currentState == selectedTab &&
+                !tabTransition.isRunning
+    }
+
+    fun selectTab(tab: AethraTab) {
+        if (tab != selectedTab && canInteractNow()) {
+            selectedTab = tab
         }
+    }
+
+    fun changePeriod(month: YearMonth?) {
+        if (canInteractNow()) {
+            selectedPeriod = month?.toString()
+        }
+    }
+
+    fun openDetails(transaction: Transaction) {
+        if (!canInteractNow()) return
 
         viewModel.clearSaveResult()
         viewModel.clearDeleteResult()
+
         selectedId = transaction.id
     }
 
     fun openForm(transaction: Transaction? = null) {
+        val latest = viewModel.uiState.value
+
         if (
             !navigationEnabled ||
-            !storageReady ||
-            viewModel.isBusy ||
-            showAddTransaction
+            latest.isLoading ||
+            latest.loadError != null ||
+            latest.isBusy ||
+            showAddTransaction ||
+            tabTransition.currentState != selectedTab ||
+            tabTransition.isRunning
         ) {
             return
         }
 
-        if (transaction == null && selectedId != null) {
+        if (
+            transaction == null &&
+            selectedId != null
+        ) {
             return
         }
 
@@ -151,6 +203,8 @@ fun MainScreen(
         showAddTransaction = true
     }
 
+    // Menutup form yang dipulihkan setelah transaksi berhasil
+    // tersimpan tepat sebelum proses aplikasi berhenti.
     LaunchedEffect(
         showAddTransaction,
         requestId,
@@ -168,14 +222,18 @@ fun MainScreen(
 
     BackHandler(
         enabled = navigationEnabled &&
-                !showAddTransaction &&
-                selectedId == null &&
-                selectedTab != AethraTab.Home
+                !modalIsOpen &&
+                (
+                        selectedTab != AethraTab.Home ||
+                                tabIsMoving
+                        )
     ) {
-        selectedTab = AethraTab.Home
+        selectTab(AethraTab.Home)
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -189,8 +247,8 @@ fun MainScreen(
                         .fillMaxSize()
                         .padding(32.dp),
                     verticalArrangement = Arrangement.spacedBy(
-                        16.dp,
-                        Alignment.CenterVertically
+                        space = 16.dp,
+                        alignment = Alignment.CenterVertically
                     ),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -206,50 +264,123 @@ fun MainScreen(
                     }
                 }
             } else {
-                AnimatedContent(
-                    targetState = selectedTab,
+                tabTransition.AnimatedContent(
                     modifier = Modifier.fillMaxSize(),
                     transitionSpec = {
-                        fadeIn(tween(220)) togetherWith
-                                fadeOut(tween(120))
-                    },
-                    label = "main tab transition"
+                        val tabDirection = if (
+                            targetState.ordinal > initialState.ordinal
+                        ) {
+                            1
+                        } else {
+                            -1
+                        }
+
+                        val direction = if (
+                            layoutDirection == LayoutDirection.Ltr
+                        ) {
+                            tabDirection
+                        } else {
+                            -tabDirection
+                        }
+
+                        val enter = slideInHorizontally(
+                            animationSpec = tween(
+                                durationMillis = 360,
+                                easing = FastOutSlowInEasing
+                            ),
+                            initialOffsetX = { width ->
+                                direction * (width / 8)
+                            }
+                        ) + fadeIn(
+                            animationSpec = tween(
+                                durationMillis = 260,
+                                delayMillis = 40
+                            )
+                        )
+
+                        val exit = slideOutHorizontally(
+                            animationSpec = tween(
+                                durationMillis = 280,
+                                easing = FastOutSlowInEasing
+                            ),
+                            targetOffsetX = { width ->
+                                -direction * (width / 12)
+                            }
+                        ) + fadeOut(
+                            animationSpec = tween(
+                                durationMillis = 180
+                            )
+                        )
+
+                        (enter togetherWith exit).using(null)
+                    }
                 ) { tab ->
                     stateHolder.SaveableStateProvider(
                         key = tab.name
                     ) {
-                        when (tab) {
-                            AethraTab.Home -> {
-                                HomeScreen(
-                                    transactions = transactions,
-                                    bottomContentPadding = contentBottomPadding,
-                                    cardSurfaceModifier = cardSurfaceModifier,
-                                    cardContentModifier = cardContentModifier,
-                                    onTransactionClick = ::openDetails
-                                )
-                            }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .semantics {
+                                    if (tab != selectedTab) {
+                                        hideFromAccessibility()
+                                    }
+                                }
+                        ) {
+                            when (tab) {
+                                AethraTab.Home -> {
+                                    HomeScreen(
+                                        transactions = transactions,
+                                        bottomContentPadding = contentBottomPadding,
+                                        cardSurfaceModifier = cardSurfaceModifier,
+                                        cardContentModifier = cardContentModifier,
+                                        onTransactionClick = ::openDetails
+                                    )
+                                }
 
-                            AethraTab.Transactions -> {
-                                TransactionsScreen(
-                                    transactions = transactions,
-                                    bottomContentPadding = contentBottomPadding,
-                                    onTransactionClick = ::openDetails,
-                                    selectedMonth = selectedMonth,
-                                    onMonthSelected = ::changePeriod
-                                )
-                            }
+                                AethraTab.Transactions -> {
+                                    TransactionsScreen(
+                                        transactions = transactions,
+                                        bottomContentPadding = contentBottomPadding,
+                                        onTransactionClick = ::openDetails,
+                                        selectedMonth = selectedMonth,
+                                        onMonthSelected = ::changePeriod
+                                    )
+                                }
 
-                            AethraTab.Insights -> {
-                                InsightsScreen(
-                                    transactions = transactions,
-                                    bottomContentPadding = contentBottomPadding,
-                                    selectedMonth = selectedMonth,
-                                    onMonthSelected = ::changePeriod
-                                )
+                                AethraTab.Insights -> {
+                                    InsightsScreen(
+                                        transactions = transactions,
+                                        bottomContentPadding = contentBottomPadding,
+                                        selectedMonth = selectedMonth,
+                                        onMonthSelected = ::changePeriod
+                                    )
+                                }
                             }
                         }
                     }
                 }
+            }
+
+            // Menahan sentuhan selama perpindahan halaman.
+            if (tabIsMoving || !navigationEnabled) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent(
+                                        pass = PointerEventPass.Initial
+                                    )
+
+                                    event.changes.forEach {
+                                        it.consume()
+                                    }
+                                }
+                            }
+                        }
+                )
             }
 
             if (uiState.isLoading) {
@@ -274,11 +405,7 @@ fun MainScreen(
             onClick = {
                 openForm()
             },
-            enabled = navigationEnabled &&
-                    storageReady &&
-                    !uiState.isBusy &&
-                    !showAddTransaction &&
-                    selectedId == null,
+            enabled = canInteract,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
@@ -290,15 +417,9 @@ fun MainScreen(
 
         FloatingNavBar(
             selectedTab = selectedTab,
-            onTabSelected = {
-                selectedTab = it
-            },
+            onTabSelected = ::selectTab,
             hazeState = hazeState,
-            enabled = navigationEnabled &&
-                    storageReady &&
-                    !uiState.isBusy &&
-                    !showAddTransaction &&
-                    selectedId == null,
+            enabled = canInteract,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
@@ -323,6 +444,7 @@ fun MainScreen(
                 if (!viewModel.isBusy) {
                     showAddTransaction = false
                     editingId = null
+
                     viewModel.clearSaveResult()
                 }
             },
@@ -356,13 +478,16 @@ fun MainScreen(
             onDismiss = {
                 if (!viewModel.isBusy) {
                     selectedId = null
+
                     viewModel.clearDeleteResult()
                 }
             },
             onEdit = {
                 val current = viewModel.uiState.value
                     .transactions
-                    .firstOrNull { it.id == id }
+                    .firstOrNull {
+                        it.id == id
+                    }
 
                 if (current != null) {
                     openForm(current)
